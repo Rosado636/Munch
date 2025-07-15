@@ -40,5 +40,56 @@ def get_reviews(restaurant_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
     # Fetch all reviews tied to this restaurant
-    reviews = session.exec(select(Review).where(Review.restaurant_id == restaurant_id)).all()
+    reviews = session.exec(
+        select(Review)
+        .where(
+            Review.restaurant_id == restaurant_id,
+            Review.deleted == False #Exclude soft deletes
+        )
+    ).all()
     return reviews
+
+@router.delete("/reviews/{review_id}")
+def delete_review(review_id: int, reason: str, session: Session = Depends(get_session)):
+    review = session.get(Review, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    #Validate deletion reason
+    valid_reasons = ["Spam", "Offensive", "Admin_request", "Other"]
+    if reason.lower() not in valid_reasons:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid reason provided. Allowed values: {', '.join(valid_reasons)}"
+        )
+    #Soft delete the review and record reason
+    review.deleted = True
+    review.delete_reason = reason
+    session.commit()
+
+    return {"message": f"Review {review_id} marked as deleted for reason: {reason}"}
+
+@router.put("/reviews/{review_id}")
+def update_review(
+        review_id: int,
+        updated_data: ReviewCreate,
+        session: Session = Depends(get_session)
+):
+    #Fetch the review
+    review = session.get(Review, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    #Prevent editing if review have been soft delete
+    if review.deleted:
+        raise HTTPException(status_code=404, detail="Cannot update deleted review")
+
+    #update fields
+    review.reviewer = updated_data.reviewer
+    review.rating = updated_data.rating
+    review.comment = updated_data.comment
+
+    #save changes
+    session.commit()
+    session.refresh(review)
+    return review

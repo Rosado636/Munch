@@ -46,6 +46,8 @@ class Review(SQLModel, table=True):
 
     # When it was created (auto-generated)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    deleted: bool = Field(default = False)
+    delete_reason: Optional[str] = Field(default=None, description="Reason for deletion")
 
 
 class ReviewCreate(SQLModel):
