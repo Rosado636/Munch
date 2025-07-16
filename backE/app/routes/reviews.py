@@ -5,20 +5,25 @@ from ..db import engine
 
 router = APIRouter()
 
-# Dependency to get a DB session
+# Dependency to provide a database session
 def get_session():
     with Session(engine) as session:
         yield session
 
-# POST /restaurants/{id}/reviews - Add a review to a restaurant
+# POST /restaurants/{restaurant_id}/reviews
+# Add a new review for a restaurant
 @router.post("/restaurants/{restaurant_id}/reviews")
-def add_review(restaurant_id: int, review_data: ReviewCreate, session: Session = Depends(get_session)):
-    # Look up the restaurant
+def add_review(
+        restaurant_id: int,
+        review_data: ReviewCreate,
+        session: Session = Depends(get_session)
+):
+    # Check if the restaurant exists
     restaurant = session.get(Restaurant, restaurant_id)
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
-    # Create review object and link to restaurant
+    # Create new review object
     review = Review(
         restaurant_id=restaurant_id,
         reviewer=review_data.reviewer,
@@ -26,70 +31,90 @@ def add_review(restaurant_id: int, review_data: ReviewCreate, session: Session =
         comment=review_data.comment
     )
 
+    # Save to database
     session.add(review)
     session.commit()
     session.refresh(review)
     return review
 
-# GET /restaurants/{id}/reviews - Get all reviews for a restaurant
+# GET /restaurants/{restaurant_id}/reviews
+# Get paginated list of reviews (excluding soft-deleted)
 @router.get("/restaurants/{restaurant_id}/reviews")
-def get_reviews(restaurant_id: int, session: Session = Depends(get_session)):
-    # Ensure the restaurant exists
+def get_reviews(
+        restaurant_id: int,
+        session: Session = Depends(get_session),
+        limit: int = 10,
+        offset: int = 0
+):
+    # Check if the restaurant exists
     restaurant = session.get(Restaurant, restaurant_id)
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
 
-    # Fetch all reviews tied to this restaurant
+    # Query reviews, apply offset and limit, exclude deleted
     reviews = session.exec(
         select(Review)
         .where(
-            Review.restaurant_id == restaurant_id,
-            Review.deleted == False #Exclude soft deletes
+            (Review.restaurant_id == restaurant_id) & (Review.deleted == False)
         )
+        .offset(offset)
+        .limit(limit)
     ).all()
+
     return reviews
 
-@router.delete("/reviews/{review_id}")
-def delete_review(review_id: int, reason: str, session: Session = Depends(get_session)):
-    review = session.get(Review, review_id)
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-
-    #Validate deletion reason
-    valid_reasons = ["Spam", "Offensive", "Admin_request", "Other"]
-    if reason.lower() not in valid_reasons:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid reason provided. Allowed values: {', '.join(valid_reasons)}"
-        )
-    #Soft delete the review and record reason
-    review.deleted = True
-    review.delete_reason = reason
-    session.commit()
-
-    return {"message": f"Review {review_id} marked as deleted for reason: {reason}"}
-
+# PUT /reviews/{review_id}
+# Update an existing review (only if not deleted)
 @router.put("/reviews/{review_id}")
 def update_review(
         review_id: int,
         updated_data: ReviewCreate,
         session: Session = Depends(get_session)
 ):
-    #Fetch the review
+    # Fetch review by ID
     review = session.get(Review, review_id)
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    #Prevent editing if review have been soft delete
+    # Block updates if review is soft-deleted
     if review.deleted:
-        raise HTTPException(status_code=404, detail="Cannot update deleted review")
+        raise HTTPException(status_code=400, detail="Cannot update a deleted review")
 
-    #update fields
+    # Update fields
     review.reviewer = updated_data.reviewer
     review.rating = updated_data.rating
     review.comment = updated_data.comment
 
-    #save changes
+    # Commit changes
     session.commit()
     session.refresh(review)
     return review
+
+# DELETE /reviews/{review_id}
+# Soft delete a review with a required reason
+@router.delete("/reviews/{review_id}")
+def delete_review(
+        review_id: int,
+        reason: str,
+        session: Session = Depends(get_session)
+):
+    # Fetch review by ID
+    review = session.get(Review, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    # Validate allowed reasons
+    valid_reasons = ["spam", "offensive", "admin_request", "other"]
+    if reason.lower() not in valid_reasons:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid reason provided. Allowed values: {', '.join(valid_reasons)}"
+        )
+
+    # Apply soft delete and record reason
+    review.deleted = True
+    review.delete_reason = reason
+    session.commit()
+
+    return {"message": f"Review {review_id} marked as deleted for reason: {reason}"}
+

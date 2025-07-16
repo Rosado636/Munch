@@ -1,56 +1,71 @@
-# app/models.py
+from typing import Optional, List
 from datetime import datetime, timezone
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship
+from enum import Enum
+
+# Restaurant model
 
 class Restaurant(SQLModel, table=True):
-    # Primary key - auto-generated
     id: Optional[int] = Field(default=None, primary_key=True)
-
-    # Restaurant name (required)
     name: str
-
-    # Short description (required)
     description: str
-
-    # Location, e.g. "Austin, TX" (required)
     location: str
-
-    # Average rating, default is 0.0
     rating: Optional[float] = 0.0
-
-    # Image URL to display the restaurant
     image: str
-
-    # Food category, e.g. "Mexican", "Burgers"
     category: str
-
-    # Website link (optional)
     website: Optional[str] = None
 
+    # Relationships (not required for basic functionality but useful)
+    reviews: List["Review"] = Relationship(back_populates="restaurant")
+    menu_items: List["Menu"] = Relationship(back_populates="restaurant")
+
+# Review model
+
 class Review(SQLModel, table=True):
-    #Primary key
     id: Optional[int] = Field(default=None, primary_key=True)
-
-    # Link this review to a specific restaurant
     restaurant_id: int = Field(foreign_key="restaurant.id")
-
-    # Reviewer's name
     reviewer: str
-
-    #Review rating
     rating: float
-
-    #Comment
     comment: str
-
-    # When it was created (auto-generated)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    deleted: bool = Field(default = False)
-    delete_reason: Optional[str] = Field(default=None, description="Reason for deletion")
+    deleted: bool = Field(default=False)
+    delete_reason: Optional[str] = Field(default=None)
 
+    # Relationship back to Restaurant (optional)
+    restaurant: Optional[Restaurant] = Relationship(back_populates="reviews")
+
+# ReviewCreate schema
+# Used for POST/PUT input
 
 class ReviewCreate(SQLModel):
     reviewer: str
     rating: float
     comment: str
+
+# Menu model
+# Represents a menu item for a restaurant
+
+class Menu(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    restaurant_id: int = Field(foreign_key="restaurant.id")  # Link menu item to restaurant
+    name: str  # Menu item name
+    description: Optional[str] = None  # Menu item description
+    price: float  # Price of the item
+
+    # Relationship back to Restaurant (optional)
+    restaurant: Optional[Restaurant] = Relationship(back_populates="menu_items")
+
+class UserRole(str, Enum):
+    USER = "user"
+    ADMIN = "admin"
+    BLOGGER = "blogger"
+    RESTAURANT_OWNER = "restaurant_owner"
+
+
+    #User model
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    email: str = Field(index=True, unique=True)
+    hashed_password: str
+    role: UserRole = Field(default=UserRole.USER)
