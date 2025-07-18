@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from .db import create_db_and_tables
 
 # Import the restaurant route handlers
-from .routes import restaurants, reviews, menu
+from .routes import restaurants, reviews, menu, auth
 
 # Define lifespan logic: runs once when app starts
 @asynccontextmanager
@@ -20,3 +20,4 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(restaurants.router)
 app.include_router(reviews.router)
 app.include_router(menu.router)
+app.include_router(auth.router)

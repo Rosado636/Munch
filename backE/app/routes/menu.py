@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..models import Menu, Restaurant
+from ..models import Menu, Restaurant, User
+from routes.auth import get_current_user
+
 from ..db import engine
 
 router = APIRouter()
@@ -16,7 +18,8 @@ def get_session():
 def create_menu_item(
         restaurant_id: int,
         menu_item: Menu,
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     # Check if restaurant exists
     restaurant = session.get(Restaurant, restaurant_id)
@@ -71,7 +74,8 @@ def get_menu_item(menu_id: int, session: Session = Depends(get_session)):
 def update_menu_item(
         menu_id: int,
         updated_item: Menu,
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     menu_item = session.get(Menu, menu_id)
     if not menu_item:
@@ -89,7 +93,9 @@ def update_menu_item(
 # DELETE /menu/{menu_id}
 # Delete a menu item
 @router.delete("/menu/{menu_id}")
-def delete_menu_item(menu_id: int, session: Session = Depends(get_session)):
+def delete_menu_item(menu_id: int, session: Session = Depends(get_session),
+                     current_user: User = Depends(get_current_user)
+):
     menu_item = session.get(Menu, menu_id)
     if not menu_item:
         raise HTTPException(status_code=404, detail="Menu item not found")

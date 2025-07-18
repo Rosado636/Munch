@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..models import Review, ReviewCreate, Restaurant
+from ..models import Review, ReviewCreate, Restaurant, User
+from routes.auth import get_current_user
 from ..db import engine
 
 router = APIRouter()
@@ -16,7 +17,8 @@ def get_session():
 def add_review(
         restaurant_id: int,
         review_data: ReviewCreate,
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     # Check if the restaurant exists
     restaurant = session.get(Restaurant, restaurant_id)
@@ -69,7 +71,8 @@ def get_reviews(
 def update_review(
         review_id: int,
         updated_data: ReviewCreate,
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     # Fetch review by ID
     review = session.get(Review, review_id)
@@ -96,7 +99,8 @@ def update_review(
 def delete_review(
         review_id: int,
         reason: str,
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user)
 ):
     # Fetch review by ID
     review = session.get(Review, review_id)

@@ -2,8 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..models import Restaurant, Review
+from ..models import Restaurant, Review, User
 from ..db import engine
+from ..routes.auth import get_current_user
+
 
 router = APIRouter()
 
@@ -38,7 +40,8 @@ def get_restaurant(id: int, session: Session = Depends(get_session)
 
 # POST /restaurants - create a new restaurant
 @router.post("/restaurants")
-def create_restaurant(restaurant: Restaurant, session: Session = Depends(get_session)):
+def create_restaurant(restaurant: Restaurant, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)):
     session.add(restaurant)
     session.commit()
     session.refresh(restaurant)
@@ -46,7 +49,9 @@ def create_restaurant(restaurant: Restaurant, session: Session = Depends(get_ses
 
 # PUT /restaurants/{id} - update an existing restaurant
 @router.put("/restaurants/{id}")
-def update_restaurant(id: int, updated_data: Restaurant, session: Session = Depends(get_session)):
+def update_restaurant(id: int, updated_data: Restaurant, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)
+):
     restaurant = session.get(Restaurant, id)
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -58,14 +63,15 @@ def update_restaurant(id: int, updated_data: Restaurant, session: Session = Depe
     restaurant.image = updated_data.image
     restaurant.category = updated_data.category
     restaurant.website = updated_data.website
-
     session.commit()
     session.refresh(restaurant)
     return restaurant
 
 # DELETE /restaurants/{id} - delete a restaurant
 @router.delete("/restaurants/{id}")
-def delete_restaurant(id: int, session: Session = Depends(get_session)):
+def delete_restaurant(id: int, session: Session = Depends(get_session),
+                      current_user: User = Depends(get_current_user)
+):
     restaurant = session.get(Restaurant, id)
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
